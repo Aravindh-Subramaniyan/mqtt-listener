@@ -9,17 +9,25 @@ var cms = mongoose.model('cms', cmsSchema);
 var dataSchema = new Schema({}, { strict: false });
 var data = mongoose.model('data', dataSchema);
 
-//const connectUrl = `mqtt://${Config.mqtt.host}:${Config.mqtt.port}`;
-const connectUrl = `mqtt://localhost:1883`;
+var statusSchema = new Schema({}, { strict: false });
+var status = mongoose.model('status', statusSchema);
+
+var statechangeSchema = new Schema({}, { strict: false });
+var statechange = mongoose.model('statechange', statechangeSchema);
+
+const connectUrl = `mqtt://${Config.mqtt.host}:${Config.mqtt.port}`;
+//const connectUrl = `mqtt://localhost:1883`;
 
 var client = mqtt.connect(connectUrl);
+
 
 async function init() {
   client.on("connect", async function () {
     console.log("COnnected to MQTT");
-    // await client.subscribe("");
+    await client.subscribe("/status/#");
     await client.subscribe("/cms/#");
     await client.subscribe("/data/#");
+    await client.subscribe("/statechange/#");
 
     client.on("message", async function (topic, message) {
       loggerIdArr = [];
@@ -34,6 +42,12 @@ async function init() {
           break;
         case topic == "/data/" + loggerId:
           printData(JSON.parse(message));
+          break;
+        case topic == "/status/" + loggerId:
+          printStatus(JSON.parse(message));
+          break;
+        case topic == "/statechange/" + loggerId:
+          printStateChange(JSON.parse(message));
           break;
       }
     });
@@ -79,5 +93,45 @@ async function init() {
     });
     };
   });
+
+  var printStatus = async function(message){
+    var statusData= new status(message);
+      status.findOne({loggerId: loggerId}).then((data) => {
+      if(data){
+        status.updateOne({_id: data._id},message).then((res)=>{
+          console.log("Status Data updated Successfully!")
+        })
+        return;
+      }
+      else {
+        statusData.save().then((req,res)=>{
+        console.log("Status data Saved Successfully!");
+      });
+      }
+    })
+    .catch((err) => {
+      return res.status(401).json({ error: err });
+    });
+  }
+
+  var printStateChange = async function(message){
+    var stateChange= new statechange(message);
+      statechange.findOne({loggerId: loggerId}).then((data) => {
+      if(data){
+        statechange.updateOne({_id: data._id},message).then((res)=>{
+          console.log("State Change Data updated Successfully!")
+        })
+        return;
+      }
+      else {
+        stateChange.save().then((req,res)=>{
+        console.log("State Change data Saved Successfully!");
+      });
+      }
+    })
+    .catch((err) => {
+      return res.status(401).json({ error: err });
+    });
+  }
 }
 exports.mqtt ={init: init};
